@@ -430,7 +430,7 @@ async def install_modpack(modpack: str, name: str | None = None, version: str | 
     manual: list[dict] = []
     try:
         local = Path(modpack).expanduser()
-        title, pack_version = None, None
+        title, pack_version, pack_download = None, None, None
         if local.suffix in (".mrpack", ".zip") and local.is_file():
             pack_path, pack_version, kind = local, local.stem, "mrpack" if local.suffix == ".mrpack" else "curseforge"
         else:
@@ -458,6 +458,7 @@ async def install_modpack(modpack: str, name: str | None = None, version: str | 
                                     f"{cf_page_url(project, chosen.get('_file_id'))} and pass the .zip path.")
             pack_path = await dl.fetch(f["url"], f["hashes"]["sha1"], f["hashes"].get("sha512"))
             pack_version = chosen.get("version_number")
+            pack_download = (f["url"], f["hashes"]["sha1"])
 
         if kind == "mrpack":
             index = read_mrpack(pack_path)
@@ -511,7 +512,11 @@ async def install_modpack(modpack: str, name: str | None = None, version: str | 
             await place_files(dl, game_dir, files)
             extracted = extract_overrides(pack_path, game_dir, overrides)
 
-        result = await build_instance(launcher, inst_name, components, cfg, populate, group)
+        try:
+            result = await build_instance(launcher, inst_name, components, cfg, populate, group)
+        finally:
+            if pack_download:
+                dl.forget(*pack_download)
     except (KeyError, ValueError) as e:
         raise ToolError(f"Bad modpack file: {e}") from e
     except (LauncherError, HttpError) as e:

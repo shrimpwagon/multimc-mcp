@@ -25,11 +25,15 @@ MultiMC's formats and why this is a sidecar instead of a Launcher fork: `../CLAU
   `structured_content`; list results come back as one content block per item).
 - MultiMC's source is the spec: `../Launcher/launcher/` (`InstanceList.cpp`, `minecraft/PackProfile.cpp`,
   `minecraft/MinecraftInstance.cpp`, `InstanceImportTask.cpp`, `settings/INIFile.cpp`, `FileSystem.cpp`).
-- **CurseForge key quirk (2026-10-12):** the key works for every endpoint except `GET /v1/mods/search`
-  (403). Without search, CurseForge mods resolve only by numeric ID (`cf:420799`) or by fingerprint of
-  an installed jar; slug/URL lookups fail cleanly with a hint. Re-test with
-  `curl -H "x-api-key: $K" 'https://api.curseforge.com/v1/mods/search?gameId=432&searchFilter=jei'`.
-  The key is in `~/.claude/CREDENTIALS.md` (CurseForge section).
+- **CurseForge key (2026-10-12):** Shawn's key is a self-serve *CurseForge for Studios* console key
+  (meant for game developers). It works for every endpoint except `GET /v1/mods/search` (403 from
+  every network tested: house, shop, AWS). CurseForge wants 3rd-party tools to apply via the form at
+  https://forms.monday.com/forms/dce5ccb7afda9a1c21dab1a1aa1d84eb?r=use1 (linked from
+  docs.curseforge.com/rest-api). Until approved, CurseForge mods resolve only by numeric ID
+  (`cf:420799`) or by fingerprinting installed jars. Key: `~/.claude/CREDENTIALS.md`.
+- **CurseForge 3rd-party terms forbid saving/caching API data.** So `curseforge.py` always uses ttl=0,
+  `Sources` doesn't memoise CurseForge projects, and `Downloader.forget()` deletes CurseForge files
+  from the download cache after they're placed. Keep it that way. Modrinth caching is fine.
 - Don't bypass CurseForge's "third-party downloads disabled" (no edge.forgecdn.net URL building);
   those files go to `manual_downloads`.
 - Deployed (user-scope `claude mcp add`) on `shawn`, `cassie`, `cami`. Each box has its own clone at

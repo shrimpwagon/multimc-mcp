@@ -9,8 +9,12 @@ It's a sidecar: it never modifies MultiMC itself. It reads and writes MultiMC's 
 the formats MultiMC uses (`instance.cfg`, `mmc-pack.json`, `instgroups.json`), and MultiMC picks
 new instances up on its own, even while it's open.
 
-Mods come from **Modrinth** (no key) and **CurseForge** (needs a Core API key in
-`CURSEFORGE_API_KEY`).
+Mods come from **Modrinth** (no key) and **CurseForge** (optional; needs your own CurseForge
+API key in `CURSEFORGE_API_KEY`). For a tool like this, CurseForge asks you to apply for a
+3rd-party key ([form linked from their docs](https://docs.curseforge.com/rest-api/)); a self-serve
+"CurseForge for Studios" console key works for lookups but gets 403 on search. Per CurseForge's
+3rd-party API terms, nothing from their API is cached: responses aren't memoised and CurseForge
+files aren't kept in the download cache once they're in the instance.
 
 ## Tools
 

@@ -160,8 +160,10 @@ class CurseForge:
         self.http = http
         self.headers = {"x-api-key": key, "Accept": "application/json"}
 
-    async def _get(self, path: str, params: dict | None = None, ttl: float = 600):
-        return (await self.http.get_json(f"{API}{path}", params=params, ttl=ttl, headers=self.headers))["data"]
+    # CurseForge's 3rd-party API terms forbid saving or caching API data, so nothing from it is
+    # cached (ttl=0), unlike Modrinth responses.
+    async def _get(self, path: str, params: dict | None = None):
+        return (await self.http.get_json(f"{API}{path}", params=params, ttl=0, headers=self.headers))["data"]
 
     async def _post(self, path: str, body: dict):
         return (await self.http.post_json(f"{API}{path}", body, headers=self.headers))["data"]

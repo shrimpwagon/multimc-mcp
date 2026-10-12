@@ -82,6 +82,15 @@ class Downloader:
                 tmp.unlink(missing_ok=True)
         return dest
 
+    def forget(self, url: str, sha1: str) -> None:
+        """Drop a cached copy of a CurseForge file: their API terms forbid keeping API data around."""
+        if is_curseforge_cdn(url):
+            (self.root / sha1.lower()[:2] / sha1.lower()).unlink(missing_ok=True)
+
+
+def is_curseforge_cdn(url: str) -> bool:
+    return "forgecdn.net" in url or "curseforge.com" in url
+
 
 async def place_files(dl: Downloader, game_dir: Path, files: list[dict]) -> list[str]:
     """files: {url, sha1, sha512?, relpath}. Returns the relpaths written."""
@@ -92,6 +101,7 @@ async def place_files(dl: Downloader, game_dir: Path, files: list[dict]) -> list
         dest.parent.mkdir(parents=True, exist_ok=True)
         if not (dest.exists() and sha1_of(dest) == f["sha1"].lower()):
             shutil.copyfile(src, dest)
+        dl.forget(f["url"], f["sha1"])
         return f["relpath"]
 
     return list(await asyncio.gather(*(one(f) for f in files)))

@@ -320,3 +320,24 @@ def test_rename_rewrites_inner_paths_and_reports_shortcuts(tmp_path: Path, monke
     new_cfg = inifile.read(launcher.instances_dir / "1.21.4 - Yungs" / "instance.cfg")
     assert new_cfg["JavaPath"] == str(launcher.instances_dir / "1.21.4 - Yungs" / "jre/bin/java")
     assert result["shortcuts_to_update"] == [str(home / ".local/share/applications/yungs.desktop")]
+
+
+def test_curseforge_files_are_not_kept_in_cache(tmp_path: Path):
+    from multimc_mcp.install import Downloader, place_files
+
+    class FakeDL(Downloader):
+        async def fetch(self, url, sha1, sha512=None):
+            dest = self.root / sha1[:2] / sha1
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            dest.write_bytes(b"jar")
+            return dest
+
+    dl = FakeDL(http=None, root=tmp_path / "cache")
+    import hashlib
+    sha = hashlib.sha1(b"jar").hexdigest()
+    game = tmp_path / "game"
+    run(place_files(dl, game, [{"url": "https://edge.forgecdn.net/files/1/2/a.jar", "sha1": sha, "relpath": "mods/a.jar"}]))
+    assert (game / "mods/a.jar").read_bytes() == b"jar"
+    assert not (dl.root / sha[:2] / sha).exists()
+    run(place_files(dl, game, [{"url": "https://cdn.modrinth.com/data/x/b.jar", "sha1": sha, "relpath": "mods/b.jar"}]))
+    assert (dl.root / sha[:2] / sha).exists()  # Modrinth files stay cached

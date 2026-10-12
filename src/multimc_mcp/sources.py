@@ -16,7 +16,6 @@ class Sources:
     def __init__(self, modrinth: Modrinth, curseforge: CurseForge | None):
         self.mr = modrinth
         self.cf = curseforge
-        self._projects: dict[str, dict] = {}
         self.cf_search_blocked = False  # some CurseForge keys get 403 on /mods/search only
 
     @property
@@ -50,8 +49,6 @@ class Sources:
                 raise
             self.cf_search_blocked = True  # slug lookups go through /mods/search
             return None
-        if p:
-            self._projects[p["id"]] = p
         return p
 
     async def search(self, query: str, *, source: str, mc: str | None = None, loader: str | None = None,
@@ -67,8 +64,6 @@ class Sources:
                     self.cf_search_blocked = True
                     return []
                 raise
-            for h in hits:
-                self._projects[h["id"]] = h
             return [{**h, "project_id": h["id"]} for h in hits]
         from .meta import LOADERS
         hits = await self.mr.search(query, mc=mc, loaders=LOADERS[loader].modrinth if loader else (),
@@ -82,10 +77,7 @@ class Sources:
         if mr_ids:
             out.update(await self.mr.projects(mr_ids))
         if cf_ids and self.cf:
-            missing = [i for i in cf_ids if i not in self._projects]
-            if missing:
-                self._projects.update(await self.cf.projects(missing))
-            out.update({i: self._projects[i] for i in cf_ids if i in self._projects})
+            out.update(await self.cf.projects(cf_ids))  # not memoised: CurseForge data may not be cached
         return out
 
     async def versions(self, project_id: str) -> list[dict]:
