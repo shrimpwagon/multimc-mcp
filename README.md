@@ -50,3 +50,7 @@ portable `~/MultiMC`).
 ```bash
 uv run pytest
 ```
+
+## License
+
+Apache-2.0, same as MultiMC. Unofficial; not affiliated with or endorsed by the MultiMC project.
