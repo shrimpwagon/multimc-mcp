@@ -38,3 +38,24 @@ MultiMC's formats and why this is a sidecar instead of a Launcher fork: `../CLAU
   those files go to `manual_downloads`.
 - Deployed (user-scope `claude mcp add`) on `shawn`, `cassie`, `cami`. Each box has its own clone at
   `~/repos/multimc/mcp-server` and venv; update with `git pull && uv sync`.
+
+## Cross-platform testing (verified 2026-10-12)
+
+Runs on Linux, Windows and macOS (`psutil` for processes, per-OS data dir / binary / JDK lookup in
+`launcher.py` and `meta.py`). No hosted CI: test on the house-LAN dev machines listed in
+`~/.claude/CLAUDE.md` ("Dev/test computers"): `ssh mac` (M1) and `ssh shawn@192.168.1.218` (Windows).
+They're Zeltro's release builders, so install alongside and clean up (MultiMC, the clone, uv + its
+Python, and on Windows the user-PATH entry the uv installer adds).
+
+What was verified on both: unit tests; plan → create → add_mods → rename against a scratch
+`MULTIMC_DIR`; auto-discovery of a real MultiMC (`%USERPROFILE%\MultiMC`, `~/Applications/MultiMC.app/Data`);
+and with the real MultiMC running: `multimc_open` true, rename refused, a new instance picked up live
+(MultiMC's log shows "Loaded instance ..."). Tips:
+- Pre-seed a test `multimc.cfg` with `Language`, `LastHostname` (= `hostname`), an existing `JavaPath`
+  and `AutoUpdate=false`, or MultiMC opens its setup wizard (`Application::createSetupWizard`).
+  Backslashes in that file must be doubled (MultiMC INI escaping).
+- Windows over ssh: send PowerShell `-EncodedCommand` (UTF-16LE base64); processes started in an ssh
+  session die when it closes, so start MultiMC and test in one session; run Python with `-X utf8`
+  (`-I` ignores PYTHONIOENCODING); PowerShell 5.1 strips `"` from native-command args, so pass JSON via a file.
+- macOS MultiMC is x86_64 (Rosetta). Its window shows on the Mac's screen; quit with
+  `osascript -e 'tell application "MultiMC" to quit'`.
