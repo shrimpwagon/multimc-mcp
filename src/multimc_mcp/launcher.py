@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -278,6 +279,12 @@ class Launcher:
         cfg_path = self.instances_dir / new / "instance.cfg"
         cfg = inifile.read(cfg_path)
         cfg["name"] = new_name
+        if new != old:
+            # Settings that point inside the instance (e.g. a Java runtime kept there) move with it.
+            old_root, new_root = str(self.instances_dir / old), str(self.instances_dir / new)
+            for key, value in cfg.items():
+                if old_root in value:
+                    cfg[key] = value.replace(old_root, new_root)
         inifile.write(cfg_path, cfg)
         if new != old:
             groups_path = self.instances_dir / "instgroups.json"
@@ -294,7 +301,30 @@ class Launcher:
             if settings.get("SelectedInstance") == old:
                 settings["SelectedInstance"] = new
                 inifile.write(main_cfg, settings)
-        return {"name": new_name, "old_folder": old, "folder": new, "folder_renamed": new != old}
+        result = {"name": new_name, "old_folder": old, "folder": new, "folder_renamed": new != old}
+        stale = self.shortcuts_launching(old) if new != old else []
+        if stale:
+            result["shortcuts_to_update"] = stale
+            result["note"] = f"These launch the old ID with -l; change '{old}' to '{new}' in them."
+        return result
+
+    def shortcuts_launching(self, folder: str) -> list[str]:
+        """Desktop entries / scripts outside MultiMC that launch this instance ID (`-l <id>`)."""
+        pattern = re.compile(r"""(?:-l|--launch)[ =]+(["']?)""" + re.escape(folder) + r"""\1(?:\s|$)""")
+        dirs = [Path.home() / ".local/share/applications", Path.home() / "Desktop", Path.home() / ".config/autostart",
+                Path.home() / "scripts", Path.home() / "bin"]
+        hits = []
+        for d in dirs:
+            if not d.is_dir():
+                continue
+            for f in d.iterdir():
+                if f.is_file() and f.stat().st_size < 1_000_000:
+                    try:
+                        if pattern.search(f.read_text(errors="ignore")):
+                            hits.append(str(f))
+                    except OSError:
+                        continue
+        return hits
 
     # ---- launching ---------------------------------------------------------
 

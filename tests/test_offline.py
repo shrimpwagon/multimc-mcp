@@ -301,3 +301,22 @@ def test_quilt_accepts_fabric_mods_and_alpha_needs_opt_in():
     assert best_version(vs, "1.21.1", "quilt", "mod") is None
     assert best_version(vs, "1.21.1", "quilt", "mod", allow_unstable=True)["id"] == "x1"
     assert best_version(vs, "1.21.1", "neoforge", "mod", allow_unstable=True) is None
+
+
+def test_rename_rewrites_inner_paths_and_reports_shortcuts(tmp_path: Path, monkeypatch):
+    home = tmp_path / "home"
+    (home / ".local/share/applications").mkdir(parents=True)
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: home))
+    (tmp_path / "mmc").mkdir()
+    launcher = make_launcher(tmp_path / "mmc")
+    make_instance(launcher, "1.21.4", "Yungs")
+    cfg_path = launcher.instances_dir / "1.21.4" / "instance.cfg"
+    cfg = inifile.read(cfg_path)
+    cfg.update(OverrideJavaLocation="true", JavaPath=str(launcher.instances_dir / "1.21.4" / "jre/bin/java"))
+    inifile.write(cfg_path, cfg)
+    (home / ".local/share/applications/yungs.desktop").write_text('Exec=/opt/multimc/run.sh -l "1.21.4"\n')
+    (home / ".local/share/applications/other.desktop").write_text('Exec=/opt/multimc/run.sh -l "1.21.40"\n')
+    result = launcher.rename(launcher.get_instance("1.21.4"), "1.21.4 - Yungs")
+    new_cfg = inifile.read(launcher.instances_dir / "1.21.4 - Yungs" / "instance.cfg")
+    assert new_cfg["JavaPath"] == str(launcher.instances_dir / "1.21.4 - Yungs" / "jre/bin/java")
+    assert result["shortcuts_to_update"] == [str(home / ".local/share/applications/yungs.desktop")]
