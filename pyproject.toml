@@ -1,0 +1,25 @@
+[project]
+name = "multimc-mcp"
+version = "0.1.0"
+description = "MCP server that sets up MultiMC instances (Minecraft + loader + mods) from one request"
+readme = "README.md"
+authors = [
+    { name = "Shawn Welch", email = "shrimpwagon@gmail.com" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "httpx>=0.28.1",
+    "mcp>=2.3.0",
+]
+
+[project.scripts]
+multimc-mcp = "multimc_mcp.server:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+]
