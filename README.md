@@ -38,7 +38,7 @@ Works on Linux, Windows and macOS.
 ```bash
 git clone https://github.com/shrimpwagon/multimc-mcp.git ~/multimc-mcp
 cd ~/multimc-mcp && uv sync
-claude mcp add -s user multimc -e CURSEFORGE_API_KEY='<your key>' -- ~/multimc-mcp/.venv/bin/multimc-mcp
+claude mcp add -s user multimc -- ~/multimc-mcp/.venv/bin/multimc-mcp
 ```
 
 **Windows (PowerShell)**
@@ -46,10 +46,11 @@ claude mcp add -s user multimc -e CURSEFORGE_API_KEY='<your key>' -- ~/multimc-m
 ```powershell
 git clone https://github.com/shrimpwagon/multimc-mcp.git $HOME\multimc-mcp
 cd $HOME\multimc-mcp; uv sync
-claude mcp add -s user multimc -e CURSEFORGE_API_KEY=<your key> -- $HOME\multimc-mcp\.venv\Scripts\multimc-mcp.exe
+claude mcp add -s user multimc -- $HOME\multimc-mcp\.venv\Scripts\multimc-mcp.exe
 ```
 
-The CurseForge key is optional; leave out `-e ...` to use Modrinth only.
+That's all you need: mods come from Modrinth, no key required. CurseForge support is optional
+(see above); to turn it on, add `-e CURSEFORGE_API_KEY=<your key>` before the `--`.
 
 **Finding MultiMC.** It looks in the usual place for each OS: `~/.local/share/multimc` on Linux,
 `MultiMC.app/Data` on macOS, and on Windows (where MultiMC is portable) a `MultiMC` folder in your
