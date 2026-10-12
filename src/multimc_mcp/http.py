@@ -11,7 +11,7 @@ import httpx
 
 from . import __version__
 
-USER_AGENT = f"shrimpwagon/multimc-mcp/{__version__} (shrimpwagon@gmail.com)"
+USER_AGENT = f"shrimpwagon/multimc-mcp/{__version__} (+https://github.com/shrimpwagon/multimc-mcp)"
 
 
 class HttpError(Exception):
