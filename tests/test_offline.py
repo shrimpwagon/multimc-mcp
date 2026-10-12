@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import sys
 import zipfile
 from pathlib import Path
 
@@ -28,6 +29,7 @@ def test_ini_comments_and_spacing():
     assert inifile.parse(text) == {"name": "Foo # bar", "": "empty key"}
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="Windows has no POSIX file modes")
 def test_atomic_write_keeps_mode(tmp_path: Path):
     p = tmp_path / "f.cfg"
     p.write_text("a=1\n")
