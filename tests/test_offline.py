@@ -343,3 +343,11 @@ def test_curseforge_files_are_not_kept_in_cache(tmp_path: Path):
     assert not (dl.root / sha[:2] / sha).exists()
     run(place_files(dl, game, [{"url": "https://cdn.modrinth.com/data/x/b.jar", "sha1": sha, "relpath": "mods/b.jar"}]))
     assert (dl.root / sha[:2] / sha).exists()  # Modrinth files stay cached
+
+
+def test_java_install_hint_per_os(monkeypatch):
+    from multimc_mcp import meta
+    monkeypatch.setattr(meta.sys, "platform", "win32")
+    assert "winget" in meta.java_install_hint(21)
+    monkeypatch.setattr(meta.sys, "platform", "darwin")
+    assert "temurin@21" in meta.java_install_hint(21)

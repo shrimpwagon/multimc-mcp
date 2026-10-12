@@ -187,6 +187,18 @@ def pick_java(required: int | None, default_java: str = "java") -> tuple[str | N
             return javas[newer[0]], f"Java {required} isn't installed; using Java {newer[0]}, which usually works."
     return None, (
         f"This Minecraft version needs Java {required}, which isn't installed "
-        f"(found: {', '.join(map(str, sorted(javas))) or 'none'}). Install it, e.g. "
-        f"`sudo apt install openjdk-{required}-jre`, then set it in the instance's settings."
+        f"(found: {', '.join(map(str, sorted(javas))) or 'none'}). Install it with "
+        f"{java_install_hint(required)}, then plan again so the instance gets pointed at it."
     )
+
+
+def java_install_hint(major: int) -> str:
+    if sys.platform == "win32":
+        return f"`winget install EclipseAdoptium.Temurin.{major}.JRE`"
+    if sys.platform == "darwin":
+        return f"`brew install --cask temurin@{major}`"
+    if shutil.which("dnf"):
+        return f"`sudo dnf install java-{major}-openjdk`"
+    if shutil.which("pacman"):
+        return f"`sudo pacman -S jre{major}-openjdk`"
+    return f"`sudo apt install openjdk-{major}-jre`"
