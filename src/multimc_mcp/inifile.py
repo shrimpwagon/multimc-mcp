@@ -88,7 +88,8 @@ def atomic_write_text(path: Path, text: str) -> None:
             umask = os.umask(0)
             os.umask(umask)
             mode = 0o666 & ~umask
-        os.fchmod(fd, mode)
+        if os.name != "nt":  # Windows has no POSIX modes (and no os.fchmod before 3.13)
+            os.fchmod(fd, mode)
         with os.fdopen(fd, "w", encoding="utf-8") as f:
             f.write(text)
         os.replace(tmp, path)

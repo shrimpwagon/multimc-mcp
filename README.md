@@ -30,14 +30,32 @@ files aren't kept in the download cache once they're in the instance.
 
 ## Install
 
+Needs [uv](https://docs.astral.sh/uv/) (it brings its own Python 3.12) and Claude Code or another MCP client.
+Works on Linux, Windows and macOS.
+
+**Linux / macOS**
+
 ```bash
-git clone git@github.com:shrimpwagon/multimc-mcp.git ~/repos/multimc/mcp-server
-cd ~/repos/multimc/mcp-server && uv sync
-claude mcp add -s user multimc -e CURSEFORGE_API_KEY='<key>' -- ~/repos/multimc/mcp-server/.venv/bin/multimc-mcp
+git clone https://github.com/shrimpwagon/multimc-mcp.git ~/multimc-mcp
+cd ~/multimc-mcp && uv sync
+claude mcp add -s user multimc -e CURSEFORGE_API_KEY='<your key>' -- ~/multimc-mcp/.venv/bin/multimc-mcp
 ```
 
-`MULTIMC_DIR` overrides where MultiMC's data folder is (default `~/.local/share/multimc`, or a
-portable `~/MultiMC`).
+**Windows (PowerShell)**
+
+```powershell
+git clone https://github.com/shrimpwagon/multimc-mcp.git $HOME\multimc-mcp
+cd $HOME\multimc-mcp; uv sync
+claude mcp add -s user multimc -e CURSEFORGE_API_KEY=<your key> -- $HOME\multimc-mcp\.venv\Scripts\multimc-mcp.exe
+```
+
+The CurseForge key is optional; leave out `-e ...` to use Modrinth only.
+
+**Finding MultiMC.** It looks in the usual place for each OS: `~/.local/share/multimc` on Linux,
+`MultiMC.app/Data` on macOS, and on Windows (where MultiMC is portable) a `MultiMC` folder in your
+home, Desktop, Downloads, Documents, `C:\` or Program Files. If MultiMC is open it also asks the
+running copy where it lives. Otherwise set `MULTIMC_DIR` to the folder that holds `multimc.cfg`
+(`-e MULTIMC_DIR=...` in the `claude mcp add` line).
 
 ## Safety rules it follows
 

@@ -8,6 +8,7 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -120,16 +121,36 @@ def _java_version(java: Path) -> int | None:
     return _major(m.group(1)) if m else None
 
 
+def _jdk_roots() -> list[Path]:
+    """Folders whose subfolders are JDK/JRE installs, per OS."""
+    home = Path.home()
+    if sys.platform == "win32":
+        bases = [Path(os.environ.get(v, d)) for v, d in (("ProgramFiles", "C:/Program Files"),
+                                                         ("ProgramFiles(x86)", "C:/Program Files (x86)"))]
+        vendors = ["Java", "Eclipse Adoptium", "Eclipse Foundation", "Microsoft", "Zulu", "Amazon Corretto",
+                   "BellSoft", "Semeru", "OpenJDK"]
+        return [b / v for b in bases for v in vendors] + [home / ".jdks"]
+    if sys.platform == "darwin":
+        return [Path("/Library/Java/JavaVirtualMachines"), home / "Library/Java/JavaVirtualMachines",
+                Path("/opt/homebrew/opt"), Path("/usr/local/opt"), home / ".jdks", home / ".sdkman/candidates/java"]
+    return [Path("/usr/lib/jvm"), Path("/usr/java"), home / ".jdks", home / ".sdkman/candidates/java"]
+
+
 def installed_javas() -> dict[int, str]:
-    """major version -> path of a java binary, preferring system JDKs."""
+    """major version -> path of a java binary, preferring system JDKs. On Windows this is javaw.exe,
+    which is what MultiMC itself uses (no console window)."""
+    exe = "javaw.exe" if sys.platform == "win32" else "java"
     candidates: list[Path] = []
-    for root in (Path("/usr/lib/jvm"), Path("/usr/java"), Path.home() / ".jdks", Path.home() / ".sdkman/candidates/java"):
-        if root.is_dir():
-            for d in sorted(root.iterdir()):
-                for rel in ("bin/java", "jre/bin/java"):
-                    if (d / rel).is_file() and os.access(d / rel, os.X_OK):
-                        candidates.append(d / rel)
-                        break
+    for root in _jdk_roots():
+        if not root.is_dir():
+            continue
+        for d in sorted(root.iterdir()):
+            # macOS JDKs keep the real home in Contents/Home; Homebrew in libexec/openjdk.jdk/Contents/Home.
+            for home in (d, d / "Contents/Home", d / "libexec/openjdk.jdk/Contents/Home", d / "jre"):
+                java = home / "bin" / exe
+                if java.is_file() and os.access(java, os.X_OK):
+                    candidates.append(java)
+                    break
     on_path = shutil.which("java")
     if on_path:
         candidates.insert(0, Path(on_path))

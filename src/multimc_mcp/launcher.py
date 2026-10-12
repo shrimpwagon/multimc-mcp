@@ -10,10 +10,16 @@ import json
 import os
 import re
 import subprocess
+import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
+import psutil
+
 from . import inifile
+
+IS_WINDOWS = sys.platform == "win32"
+IS_MAC = sys.platform == "darwin"
 
 # FileSystem.cpp: badFilenameChars, replaced with '-' in instance folder names.
 BAD_FILENAME_CHARS = set('"\\/?<>:;*|!+\r\n')
@@ -36,19 +42,60 @@ class LauncherError(Exception):
     pass
 
 
+def _candidates() -> list[Path]:
+    """Where MultiMC usually keeps its data (multimc.cfg, instances/) on each OS."""
+    home = Path.home()
+    if IS_WINDOWS:
+        # MultiMC on Windows is portable: data lives next to MultiMC.exe, wherever it was extracted.
+        env = os.environ
+        roots = [home, home / "Desktop", home / "Downloads", home / "Documents", home / "Games",
+                 Path(env.get("LOCALAPPDATA", home)), Path(env.get("APPDATA", home)),
+                 Path(env.get("SystemDrive", "C:") + "/"), Path(env.get("ProgramFiles", "C:/Program Files"))]
+        return [r / "MultiMC" for r in roots]
+    if IS_MAC:
+        # Application.cpp: data lives in MultiMC.app/Data (older installs: next to the binary).
+        apps = [Path("/Applications/MultiMC.app"), home / "Applications/MultiMC.app"]
+        return [a / "Data" for a in apps] + [a / "Contents/MacOS" for a in apps] + [home / "MultiMC"]
+    xdg = Path(os.environ.get("XDG_DATA_HOME", home / ".local/share"))
+    return [xdg / "multimc", home / "MultiMC"]
+
+
+def _data_dir_of(exe: Path) -> Path:
+    """MultiMC's data folder, given the path of its running binary."""
+    if IS_MAC and exe.parent.name == "MacOS":
+        data = exe.parents[2] / "Data"  # MultiMC.app/Contents/MacOS/MultiMC -> MultiMC.app/Data
+        return data if data.is_dir() else exe.parent
+    if exe.parent.name == "bin" and (exe.parent.parent / "multimc.cfg").exists():
+        return exe.parent.parent  # Linux tarball: <data>/bin/MultiMC
+    return exe.parent
+
+
+def _multimc_processes():
+    for proc in psutil.process_iter(["name", "exe"]):
+        name = (proc.info.get("name") or "").lower()
+        if name in ("multimc", "multimc.exe") and proc.info.get("exe"):
+            yield proc, Path(proc.info["exe"])
+
+
 def find_data_dir() -> Path:
-    """MULTIMC_DIR, else the .deb wrapper's ~/.local/share/multimc, else a portable copy in ~/MultiMC."""
+    """MULTIMC_DIR, else the usual place for this OS, else ask a running MultiMC where it lives."""
     env = os.environ.get("MULTIMC_DIR")
     if env:
         return Path(env).expanduser()
-    xdg = Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local/share"))
-    for candidate in (xdg / "multimc", Path.home() / "MultiMC"):
-        if (candidate / "multimc.cfg").exists() or (candidate / "MultiMC").exists():
+    for candidate in _candidates():
+        if (candidate / "multimc.cfg").exists():
             return candidate
-    raise LauncherError(
-        "Can't find MultiMC's data folder (looked in ~/.local/share/multimc and ~/MultiMC). "
-        "Set MULTIMC_DIR to the folder that holds multimc.cfg."
-    )
+    for _, exe in _multimc_processes():
+        data = _data_dir_of(exe)
+        if (data / "multimc.cfg").exists():
+            return data
+    if IS_WINDOWS:
+        where = "the folder you extracted MultiMC to (it holds MultiMC.exe and multimc.cfg)"
+    elif IS_MAC:
+        where = "MultiMC.app/Data"
+    else:
+        where = "the folder that holds multimc.cfg"
+    raise LauncherError(f"Can't find MultiMC's data folder. Open MultiMC once, or set MULTIMC_DIR to {where}.")
 
 
 @dataclass
@@ -120,38 +167,29 @@ class Launcher:
 
     @property
     def binary(self) -> Path:
-        return self.data_dir / "MultiMC"
+        if IS_WINDOWS:
+            return self.data_dir / "MultiMC.exe"
+        if IS_MAC and self.data_dir.name == "Data" and self.data_dir.parent.suffix == ".app":
+            return self.data_dir.parent / "Contents/MacOS/MultiMC"
+        return self.data_dir / "MultiMC"  # Linux (a launcher script) and old Mac layouts
 
     # ---- processes ---------------------------------------------------------
 
-    def _procs(self):
-        for entry in Path("/proc").iterdir():
-            if entry.name.isdigit():
-                yield entry
-
     def is_running(self) -> bool:
-        """True if the MultiMC GUI from this data dir is running."""
-        targets = {str(self.binary.resolve()), str((self.data_dir / "bin" / "MultiMC").resolve())}
-        for proc in self._procs():
-            try:
-                exe = os.readlink(proc / "exe")
-            except OSError:
-                continue
-            if exe in targets:
-                return True
-        return False
+        """True if the MultiMC GUI that uses this data dir is running."""
+        mine = self.data_dir.resolve()
+        return any(_data_dir_of(exe).resolve() == mine for _, exe in _multimc_processes())
 
     def running_instance_folders(self) -> set[str]:
         """Instance folders that have a Java process working inside them (a running game)."""
         root = self.instances_dir.resolve()
         found: set[str] = set()
-        for proc in self._procs():
+        for proc in psutil.process_iter(["name"]):
+            if "java" not in (proc.info.get("name") or "").lower():  # java, javaw.exe
+                continue
             try:
-                comm = (proc / "comm").read_text().strip()
-                if "java" not in comm:
-                    continue
-                cwd = Path(os.readlink(proc / "cwd"))
-            except OSError:
+                cwd = Path(proc.cwd()).resolve()
+            except (psutil.Error, OSError):
                 continue
             try:
                 rel = cwd.relative_to(root)
@@ -311,8 +349,9 @@ class Launcher:
     def shortcuts_launching(self, folder: str) -> list[str]:
         """Desktop entries / scripts outside MultiMC that launch this instance ID (`-l <id>`)."""
         pattern = re.compile(r"""(?:-l|--launch)[ =]+(["']?)""" + re.escape(folder) + r"""\1(?:\s|$)""")
-        dirs = [Path.home() / ".local/share/applications", Path.home() / "Desktop", Path.home() / ".config/autostart",
-                Path.home() / "scripts", Path.home() / "bin"]
+        home = Path.home()
+        dirs = [home / "Desktop", home / ".local/share/applications", home / ".config/autostart",
+                home / "scripts", home / "bin", home / "AppData/Roaming/Microsoft/Windows/Start Menu/Programs"]
         hits = []
         for d in dirs:
             if not d.is_dir():
@@ -340,8 +379,14 @@ class Launcher:
         if account:
             args += ["-a", account]
         env = dict(os.environ)
-        env.setdefault("DISPLAY", ":0")
+        detach: dict = {}
+        if IS_WINDOWS:
+            detach["creationflags"] = subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
+        else:
+            detach["start_new_session"] = True
+            if not IS_MAC:
+                env.setdefault("DISPLAY", ":0")
         # If MultiMC is already open this hands the launch to it over its local socket and exits.
-        subprocess.Popen(args, cwd=self.data_dir, env=env, start_new_session=True,
-                         stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        subprocess.Popen(args, cwd=self.data_dir, env=env, stdin=subprocess.DEVNULL,
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, **detach)
         return " ".join(args[1:])
